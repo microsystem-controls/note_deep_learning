@@ -1,29 +1,70 @@
-import os
 import pandas as pd
+import numpy as np
+import json
+import torch
 from torch.utils.data import Dataset
-from torchvision.io import read_image
+import os
 
 
-class TracesDataset(Dataset):
-    def __init__(self, annotations_file: str, img_dir: str, transform=None, target_transform=None):
-        self.img_labels = pd.read_csv(annotations_file)
-        self.img_dir = img_dir
-        self.transform = transform
-        self.target_transform = target_transform
-        self.index_to_label = sorted(self.img_labels["channel"].unique())
-        self.label_to_index = {value: i for i, value in enumerate(self.index_to_label)}
+dtype_dict = {
+    'path': str,
+    'country' : str,
+    'isGenuine' : bool, #bool,
+    'channel' : int,  #int,
+    'revision' : str,
+    'orientation' : str,
+    'validatorModel' : str,
+    'serial' : str,
+    'firmwareRevision' : str,
+    'created' : str,
+    'insertion' : int, #int
+    'sensor' : str,
+    'data' : str
+    }
+
+def parse_dict(dict_str):
+    try:
+        parsed = json.loads(dict_str)
+        data_array = [np.interp(np.linspace(0, len(parsed_value) - 1, 280), np.arange(len(parsed_value)), parsed_value) for parsed_value in parsed.values()]
+        raw = np.vstack(data_array)
+        return raw
+    except (ValueError, SyntaxError) as e:
+        print(f"Error parsing dictionary: {e}")
+        return None
+
+##
+
+class TraceDataset(Dataset):
+    def __init__(self, csv_path: str, cache_pickle=True):
+        pickle_path = csv_path + '.pkl'
+        pickle_exists = os.path.isfile(pickle_path)
+
+        csv_mod_time = os.path.getmtime(csv_path)
+        pickle_mod_time = os.path.getmtime(pickle_path) if pickle_exists else 0
+
+        if cache_pickle:
+            if not pickle_exists or csv_mod_time > pickle_mod_time:
+                df = pd.read_csv(csv_path, dtype=dtype_dict)
+                df['data'] = df['data'].apply(parse_dict)
+                df.to_pickle(pickle_path)
+            else:
+                df = pd.read_pickle(pickle_path)
+        else:
+            df = pd.read_csv(csv_path, dtype=dtype_dict)
+            df['data'] = df['data'].apply(parse_dict)
+
+        self.data = df['data']
+        self.labels = df['channel']
 
     def __len__(self):
-        return len(self.img_labels)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
-        image = read_image(img_path)
-        label = self.label_to_index[self.img_labels.iloc[idx, 2]]
-        if self.transform:
-            image = self.transform(image)
-        if self.target_transform:
-            label = self.target_transform(label)
-        return image, label
+        # x = self.data.iloc[idx][:,:200]
+        x = self.data.iloc[idx]
+        y = self.labels.iloc[idx]
+        return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.long)
 
-
+if __name__ == "__main__":
+    trace_dataset = TraceDataset("assets/csv/ThailandV2.csv")
+    trace_dataset.data
