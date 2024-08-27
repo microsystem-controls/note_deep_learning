@@ -35,7 +35,12 @@ def parse_dict(dict_str):
 ##
 
 class TraceDataset(Dataset):
-    def __init__(self, csv_path: str, cache_pickle=True):
+    def __init__(self, df):
+        self.data = df['data']
+        self.labels = df['channel']
+
+    @classmethod
+    def fromCsv(cls, csv_path: str, cache_pickle=True):
         pickle_path = csv_path + '.pkl'
         pickle_exists = os.path.isfile(pickle_path)
 
@@ -52,9 +57,12 @@ class TraceDataset(Dataset):
         else:
             df = pd.read_csv(csv_path, dtype=dtype_dict)
             df['data'] = df['data'].apply(parse_dict)
-
-        self.data = df['data']
-        self.labels = df['channel']
+        return cls(df)
+    
+    @classmethod
+    def fromPickle(cls, pickle_path: str):
+        df = pd.read_pickle(pickle_path)
+        return cls(df)
 
     def __len__(self):
         return len(self.data)
@@ -66,5 +74,6 @@ class TraceDataset(Dataset):
         return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.long)
 
 if __name__ == "__main__":
-    trace_dataset = TraceDataset("assets/csv/ThailandV2.csv")
+    # trace_dataset = TraceDataset.fromCsv("assets/csv/ThailandV2.csv")
+    trace_dataset = TraceDataset.fromPickle("assets/csv/ThailandV2.csv.pkl")
     trace_dataset.data
