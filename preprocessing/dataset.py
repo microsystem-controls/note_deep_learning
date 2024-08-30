@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import json
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 import os
 
 
@@ -118,4 +118,14 @@ data = next(i)
 print(f"data[1] = {data[1]}")
 labels = trace_dataset.fromOneHot(data[1])
 print(f"labels = {labels}")
+train, val = random_split(trace_dataset, [0.7, 0.3])
 
+train_dataloader = DataLoader(train, batch_size=32, shuffle=False)
+i = iter(train_dataloader)
+data, label = next(i)
+data.shape
+label.shape
+
+trace_dataset = TraceDataset.fromCsv("assets/csv/ThailandV2.csv")
+
+len(trace_dataset) * (1 - 0.9998) 
